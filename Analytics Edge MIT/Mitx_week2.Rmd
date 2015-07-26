@@ -1,0 +1,170 @@
+---
+title: "Analytics_Edge_Week2"
+author: "Charles J Frenzel"
+date: "Tuesday, March 10, 2015"
+output: html_document
+---
+
+##Unit Exercises
+```{r}
+
+x <- c(0,1,1)
+y <- c(2,8,2)
+
+mean(x)
+
+fit <- lm(y~x)
+summary(fit)
+
+SST <- sum((y - mean(y))^2)
+SSE <- sum(resid(fit)^2)
+
+1 - SSE / SST
+
+
+wn <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/wine.csv")
+
+names(wn)
+
+fit <- lm(Price ~ HarvestRain + WinterRain, data=wn)
+
+predictTest <- predict(fit, newdata=wn)
+
+SSE = sum((wn$Price - predictTest)^2)
+SST = sum((wn$Price - mean(wn$Price))^2)
+
+1 - SSE/SST
+
+
+summary(fit)
+
+cor(wn$HarvestRain, wn$WinterRain)
+
+
+teamRank = c(1,2,3,3,4,4,4,4,5,5)
+wins2012 = c(94,88,95,88,93,94,98,97,93,94)
+wins2013 = c(97,97,92,93,92,96,94,96,92,90)
+
+cor(teamRank, wins2012)
+cor(teamRank, wins2013)
+
+```
+
+
+## Assignment 2 Part 1
+```{r}
+cc <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/climate_change.csv")
+
+str(cc)
+names(cc) <- tolower(names(cc))
+
+tr <- cc[cc$year < 2007, ]
+tst <- cc[cc$year > 2007, ]
+
+fit <- lm(temp ~.
+    , data=tr[ , !names(tr) %in% c("year","month")])
+
+summary(fit)
+
+abs(cor(cc))[,6]
+
+abs(cor(cc))[,7]
+
+
+fit <- lm(temp ~ mei + tsi + aerosols + n2o, data=tr)
+summary(fit)
+
+fit <- lm(temp ~.
+    , data=tr[ , !names(tr) %in% c("year","month")])
+
+stp_mod <- step(fit)
+summary(stp_mod)
+
+pred <- predict(stp_mod, tst)
+summary(pred)
+
+er <- (tst$temp - pred)
+1 - sum(er^2)/sum((tst$temp - mean(tst$temp))^2)
+
+
+
+pred <- predict(stp_mod, tr)
+er <- (tr$temp - pred)
+1 - sum(er^2)/sum((tr$temp - mean(tr$temp))^2)
+
+
+
+```
+
+
+
+##Assignment 2 Part 2
+```{r}
+
+```
+
+
+
+
+
+
+##Assignment 2 Part 1
+
+```{r}
+data(state)
+
+st_df <- cbind(data.frame(state.x77), state.abb, state.area, state.center, state.division, state.name, state.region )
+
+names(st_df) <- tolower(names(st_df))
+
+str(st_df)
+
+
+with(st_df, plot(x, y, col = "red", xlab="long", ylab="lat"))
+
+tapply(st_df$hs.grad, st_df$state.region, mean )
+
+
+with(st_df, boxplot( murder ~ state.region))
+
+
+st_df[st_df$state.region == "Northeast", c("murder","state.abb")]
+
+
+fit <- lm(life.exp ~ population + income + illiteracy + 
+      murder + hs.grad + frost + area, data = st_df)
+
+summary(fit)
+
+
+with(st_df, plot(income, life.exp))
+
+fit <- lm(life.exp ~ population +   
+      murder + hs.grad + frost , data = st_df)
+
+summary(fit)
+
+pred <- predict(fit, st_df)
+
+head(sort(pred), 1)
+st_df[ which.min(st_df$life.exp) , 9 ]
+
+
+tail(sort(pred), 1)
+st_df[ which.max(st_df$life.exp) , 9 ]
+
+sort(residuals(fit))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,342 @@
+---
+title: "MIT_Week1"
+author: "Charles J Frenzel"
+date: "Wednesday, March 04, 2015"
+output: html_document
+---
+
+
+
+
+##An Introduction to R
+```{r intro probs}
+sd(c(5,8,12))
+
+which.min(c(4,1,6))
+
+who <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/WHO.csv")
+
+names(who) <- tolower(names(who))
+
+mean(who$over60)
+
+who[which.min(who$over60), ]
+
+who[which.max(who$literacyrate), ]
+
+aggregate(childmortality ~ region, data=who, min)
+```
+
+
+
+##Chicago Crime Rate
+```{r }
+crim <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/mvtWeek1.csv")
+```
+
+
+```{r}
+names(crim) <- tolower(names(crim))
+```
+
+
+```{r Problem1.1 and 2}
+dim(crim)
+```
+
+
+```{r Problem1.3 and 4}
+max(crim$id)
+
+min(crim$beat)
+```
+
+
+```{r Problem1.5 amd 6}
+table(crim$arrest)
+
+table(crim$locationdescription)
+
+```
+
+
+```{r Problem2.1 and 2 and 3 and 4}
+head(crim$date,1)
+
+date_convert <- as.Date(strptime(crim$date,
+                   "%m/%d/%y %H:%M"))
+
+summary(date_convert)
+
+crim$month <- months(date_convert)
+crim$weekday <- weekdays(date_convert)
+crim$date <- date_convert
+
+with(crim, table(month))
+
+with(crim, table(weekday))
+```
+
+
+```{r Problem2.5}
+with(crim, table(month, arrest))
+```
+
+
+```{r Problem3.1}
+hist(crim$date, breaks=100, col="orange")
+```
+
+```{r Problem3.2}
+with(crim, boxplot(date ~ arrest))
+```
+
+
+```{r Problem3.3s}
+tab <- with(crim, table(
+  as.numeric(format(date_convert, "%Y")),
+  arrest
+  ))
+
+prop.table(tab,1)
+
+```
+
+
+```{r Problem4.1}
+sort(table(crim$locationdescription))
+```
+
+
+```{r Problem4.2}
+places = c("STREET", "PARKING LOT/GARAGE(NON.RESID.)",
+          "ALLEY", "GAS STATION","DRIVEWAY - RESIDENTIAL")
+
+top5 <- subset(crim, locationdescription %in% places)
+
+dim(top5)
+```
+
+
+```{r Problem4.3}
+top5$locationdescription <- factor(top5$locationdescription)
+
+levels(top5$locationdescription)
+
+prop.table(with(top5, table(locationdescription, arrest)),1)
+
+```
+
+
+```{r Problem4.4 and 5}
+table(subset(crim, locationdescription == "GAS STATION",
+       select = weekday))
+
+table(subset(crim, locationdescription == "DRIVEWAY - RESIDENTIAL",
+       select = weekday))
+```
+
+---------------------------------------------
+##Stock Dynamics
+
+```{r  readin}
+ibm <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/IBMStock.csv")
+ge <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/GEStock.csv")
+pg <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/ProcterGambleStock.csv")
+cc <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/CocaColaStock.csv")
+bong <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/BoeingStock.csv")
+```
+
+
+
+```{r Problem1.1}
+names(ibm) <- tolower(names(ibm))
+names(ge) <- tolower(names(ge))
+names(pg) <- tolower(names(pg))
+names(cc) <- tolower(names(cc))
+names(bong) <- tolower(names(bong))
+
+ibm$date = as.Date(ibm$date, "%m/%d/%y")
+ge$date = as.Date(ge$date, "%m/%d/%y")
+cc$date = as.Date(cc$date, "%m/%d/%y")
+pg$date = as.Date(pg$date, "%m/%d/%y")
+bong$date = as.Date(bong$date, "%m/%d/%y")
+
+dim(ge)
+```
+
+```{r Problem1.1-8}
+min(ibm$date)
+min(ge$date)
+min(pg$date)
+min(cc$date)
+min(bong$date)
+# they are all the same
+
+max(ibm$date)
+
+mean(ibm$stockprice)
+
+min(ge$stockprice)
+
+max(cc$stockprice)
+
+median(bong$stockprice)
+
+sd(pg$stockprice)
+```
+
+
+
+```{r Problem2.1-3}
+plot(cc$date, cc$stockprice, xlab="date", ylab="stock",
+     type="l", col="red")
+lines(pg$date, pg$stockprice, col="blue", lty=2)
+abline(v = as.Date(c("2000-03-01")), lwd = 2)
+```
+
+
+
+```{r Problem3.1-4}
+plot(cc$date[301:432], cc$stockprice[301:432], type="l", col="red", ylim=c(0,210), xlab="date", ylab="date")
+lines(pg$date[301:432], pg$stockprice[301:432], col="blue", lty=2)
+lines(ibm$date[301:432], ibm$stockprice[301:432], col="grey", lty=3)
+lines(ge$date[301:432], ge$stockprice[301:432], col="green", lty=1)
+lines(bong$date[301:432], bong$stockprice[301:432], col="black", lty=2)
+abline(v = as.Date(c("2000-03-01")), lwd = 1)
+abline(v = as.Date(c("1997-09-01")), lwd = 1, col = "orange")
+abline(v = as.Date(c("1997-11-01")), lwd = 1, col = "orange")
+
+```
+
+
+```{r Problem4.1}
+tapply(ibm$stockprice, months(ibm$date), mean)
+mean(ibm$stockprice)
+
+which.max(round(tapply(ge$stockprice, months(ge$date), mean),0))
+which.max(round(tapply(cc$stockprice, months(cc$date), mean),0))
+
+
+```
+
+---------------------------------------------
+##Demos and Employment
+
+```{r Problem1.1}
+emp <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/CPSData.csv")
+
+names(emp) <- tolower(names(emp))
+
+nrow(emp)
+
+which.max(table(emp$industry))
+
+which.min(table(emp$state))
+
+which.max(table(emp$state))
+
+prop.table(table(emp$citizenship))
+1-0.05780567
+
+table(emp$race, emp$hispanic)
+
+```
+
+
+
+```{r problem2.1}
+
+???
+
+table(emp$region, is.na(emp$married))
+table(emp$age, is.na(emp$married))
+table(emp$sex, is.na(emp$married))
+
+table(emp$state, is.na(emp$metroareacode))
+
+prop.table(table(emp$region, is.na(emp$metroareacode)),1)
+
+sort(tapply(is.na(emp$metroareacode), emp$state, mean))
+
+# find missing
+sapply(emp, function(x) sum(is.na(x)))
+
+```
+
+
+```{r Problem3.1}
+ma_cd <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/MetroAreaCodes.csv")
+
+cntry <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/CountryCodes.csv")
+
+names(ma_cd) <- tolower(names(ma_cd))
+names(cntry) <- tolower(names(cntry))
+
+str(ma_cd)
+str(cntry)
+
+emp2 <- merge(emp, ma_cd, by.x="metroareacode", by.y="code", all.x=TRUE)
+
+str(emp2)
+
+sum(is.na(emp2$metroarea))
+
+sort(table(emp2$metroarea))
+
+# says this is wrong
+sort(xtabs(hispanic ~ metroarea, data=emp2))
+
+sort(tapply(emp2$hispanic, emp2$metroarea, mean))
+
+sort(tapply(emp2$race == "Asian", emp2$metroarea, mean))
+
+which.min(sort(tapply(emp2$education == "No high school diploma"
+            , emp2$metroarea, mean, na.rm = TRUE)))
+
+```
+
+
+```{r Problem4.1}
+
+emp3 <- merge(emp2, cntry
+    , by.x="countryofbirthcode", by.y="code", all.x=TRUE)
+
+
+sum(is.na(emp3$country))
+
+sort(table(emp3$country))
+# sanity check
+tail(sort(table(emp$countryofbirthcode)) ,2)
+cntry[cntry$code == "303",]
+
+
+sort(with(emp3[ emp3$metroarea == "New York-Northern New Jersey-Long Island, NY-NJ-PA", ], table( country )))
+
+
+# keep getting this one wrong
+sub <- subset(emp3, 
+metroarea == "New York-Northern New Jersey-Long Island, NY-NJ-PA")
+
+prop.table(table(sub$country == "United States"))
+
+
+
+sort(tapply(emp3$countryofbirthcode  == "210", 
+            emp3$metroarea
+            , mean, na.rm=T))
+
+sort(tapply(emp3$country == "Brazil", 
+            emp3$metroarea
+            , mean, na.rm=T))
+
+sort(tapply(emp3$country == "Somalia", 
+            emp3$metroarea
+            , mean, na.rm=T))
+```
+
+
+
+
+
+

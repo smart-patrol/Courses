@@ -1,0 +1,304 @@
+---
+title: "Mitx_Final"
+author: "Charles J Frenzel"
+date: "Wednesday, May 20, 2015"
+output: html_document
+---
+
+Assignment 1
+
+```{r}
+air <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/AirlineDelay.csv")
+
+names(air) <- tolower(names(air))
+
+set.seed(15071)
+spl <- sample(nrow(air), 0.7*nrow(air))
+tr <- air[spl, ]
+tst <- air[-spl,]
+
+
+mod <- lm(totaldelay ~. , data= tr)
+summary(mod)
+
+cor(tr$numprevflights, tr$prevflightgap)
+
+cor(tr$originavgwind, tr$originwindgust)
+
+abs(1.571501 --  5.418356)
+
+abs( -4.506943  --5.418356)
+
+pred <- predict(mod, tst)
+
+SSR = 
+SSE = 6527 
+
+SSE = sum((tst$totaldelay - pred)^2)
+SST = sum((tst$totaldelay - mean(tst$totaldelay, na.rm=T))^2)
+
+1 - SSE/SST
+
+air$delayclass <- factor(ifelse(air$totaldelay == 0, "No Delay",
+                    ifelse(air$totaldelay >= 30, "Major Delay"
+                           , "Minor Delay")))
+
+table(air$delayclass)
+
+air$totaldelay <- NULL
+
+set.seed(15071)
+library(caTools)
+split <- sample.split(air$delayclass, SplitRatio = 0.70)
+tr <- subset(air, split == TRUE)
+tst <- subset(air, split != TRUE)
+
+library(rpart)
+mod <- rpart(delayclass ~., data=tr)
+summary(mod)
+plot(mod)
+text(mod, use.n=TRUE)
+
+pred <- predict(mod, tst, type="class")
+
+table(tst$delayclass, pred)
+
+(153 + 1301) / nrow(tst)
+
+prop.table(table(tr$delayclass))
+
+```
+
+
+Assignment 2
+
+```{r}
+eb <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/ebay.csv",
+               stringsAsFactors=FALSE)
+
+names(eb) <- tolower(names(eb))
+
+str(eb)
+
+prop.table(table(eb$sold))
+
+summary(eb)
+
+table(eb$size)
+
+names(eb)
+
+eb$sold <- as.factor(eb$sold)
+eb$condition <- as.factor(eb$condition)
+eb$heel <- as.factor(eb$heel)
+eb$style <- as.factor(eb$style)
+eb$color <- as.factor(eb$color)
+eb$material <- as.factor(eb$material)
+
+set.seed(144)
+library(caTools)
+spl <- sample.split(eb$sold, 0.7)
+tr <- subset(eb, spl == TRUE)
+tst <- subset(eb, spl == FALSE)
+
+
+mod <-  glm(sold~biddable+startprice+condition+heel+style+color+material, data = tr, family = "binomial")
+
+summary(mod)
+# problem 7 
+
+ans <- data.frame(biddable = 0, startprice = 100, 
+           condition=factor("Pre-owned", levels(eb$condition)), 
+                   heel=factor("High", levels(eb$heel)), 
+                   style=factor("Open Toe",levels(eb$style)),
+                   color=factor("Black",levels(eb$color)), 
+                   material=factor("Satin",levels(eb$material)))
+
+predict(mod, ans, type = "response")
+
+exp(coef(mod))
+
+pred <- predict(mod, tst, type = "response")
+# problem 9
+table(tst$sold, pred >= 0.5)
+table(tst$sold)
+(877+182-899)/2
+
+
+library(ROCR)
+roc_pr <- prediction(pred, tst$sold)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+plot(roc_pr)
+
+perf <- performance(roc_pr, "tpr","fpr")
+plot(perf)
+
+table(tst$sold, pred >= 0.16)
+46 / (15 + 46)
+884 / (194 + 884)
+
+set.seed(144)
+library(caret)
+
+# problem 15
+set.seed(144)
+library(caret)
+library(e1071)
+tr.control = trainControl(method = "cv", number = 10)
+cp.grid = expand.grid( .cp = (0:50)*0.001)
+mod = train(sold ~ biddable+ startprice + condition + heel + style + color + material, data = tr, method = "rpart", trControl = tr.control, tuneGrid = cp.grid)
+
+mod
+
+mod <- rpart(sold ~ biddable+ startprice + condition + heel + style + color + material, data = tr, cp = 0.005)
+
+library(rpart.plot)
+prp(mod)
+
+
+library(tm)
+crps <- Corpus(VectorSource(eb$description))
+crps <- tm_map(crps, tolower)
+crps <- tm_map(crps, PlainTextDocument)
+crps <- tm_map(crps, removePunctuation)
+crps <- tm_map(crps, removeWords, stopwords("english"))
+crps <- tm_map(crps, stemDocument)
+dtm <- DocumentTermMatrix(crps)
+dtm
+
+spdtm <- removeSparseTerms(dtm, 0.9)
+
+desc_txt <- as.data.frame(as.matrix(spdtm))
+freqs <- colSums(desc_txt)
+sort(freqs, decreasing = TRUE)
+
+names(desc_txt) <- paste0("d_", names(desc_txt))
+
+desc_txt <- data.frame(desc_txt, sold = eb$sold, biddable = eb$biddable,
+     startprice = eb$startprice, condition = eb$condition, 
+     heel = eb$heel, style = eb$style, color = eb$color, 
+     material = eb$material)
+
+spl <- sample.split(desc_txt$sold, 0.7)
+tr <- subset(desc_txt, spl == TRUE)
+tst <- subset(desc_txt, spl == FALSE)
+
+# problem 21
+mod <- glm(sold ~. , data = tr, "binomial")
+summary(mod)
+16
+
+pred <- predict(mod, tr)
+roc_pr <- prediction(pred, tr$sold)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+pred <- predict(mod, tst)
+roc_pr <- prediction(pred, tst$sold)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+stepwise(mod)
+library(MASS)
+
+step_mod <- stepAIC(mod, trace = FALSE)
+
+
+```
+
+UNDERSTANDING CUSTOMERS OF HUBWAY
+
+
+```{r}
+hub <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/HubwayTrips.csv")
+
+names(hub) <- tolower(names(hub))
+
+str(hub)
+
+summary(hub)
+
+aggregate(duration ~ weekday, data= hub, mean)
+
+sum(hub$morning)
+sum(hub$afternoon)
+sum(hub$evening)
+
+prop.table(table(hub$male))
+
+library(caret)
+preproc <- preProcess(hub)
+hub_nrm <- predict(preproc, hub)
+
+
+max(hub_nrm$duration)
+max(hub_nrm$age)
+
+set.seed(5000)
+kmns <- kmeans(hub_nrm, 10)
+table(kmns$cluster)
+prop.table(table(kmns$cluster))*100
+
+hub$cluster <- kmns$cluster
+
+library(dplyr)
+
+hub %>%
+  group_by(cluster) %>%
+  summarize( wkday = sum(weekday)
+            ,evening = sum(evening)
+            ,male = sum(male))
+
+hub %>%
+  group_by(cluster) %>%
+  summarize( avg_trip = mean(duration)
+            ,afternoon = sum(afternoon)
+            ,wkdy = sum(weekday))
+
+hub %>%
+  group_by(cluster) %>%
+  summarize( avg_age = mean(age)
+            ,morn = sum(morning)
+            ,male = sum(male))
+
+set.seed(8000)
+kmns <- kmeans(hub_nrm, 20)
+table(kmns$cluster)
+
+hub$cluster <- kmns$cluster
+
+hub %>%
+  group_by(cluster) %>%
+  summarize( avg_dur = mean(duration),
+             wkdy = sum(weekday),
+             evening = sum(evening))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

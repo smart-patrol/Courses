@@ -1,0 +1,575 @@
+---
+title: "Mitx_week4"
+author: "Charles J Frenzel"
+date: "Sunday, March 29, 2015"
+output: html_document
+---
+
+Opening Exercises - Judge
+
+```{r}
+library(rpart)
+library(rpart.plot)
+library(caTools)
+library(ROCR)
+library(randomForest)
+library(caret)
+library(e1071)
+
+set.seed(3000)
+
+stv <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/stevens.csv")
+
+names(stv) <- tolower(names(stv))
+
+str(stv)
+
+prop.table(table(stv$reverse))
+
+spl = sample.split(stv$reverse, SplitRatio=0.7)
+tr <- subset(stv, spl == TRUE)
+tst <- subset(stv, spl == FALSE)
+
+# cart start
+
+tree <- rpart(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+              ,data= tr
+              ,method = "class"
+              ,minbucket = 25)
+
+prp(tree)
+
+pred_tree <- predict(tree, tst,  type = "class")
+
+table(tst$reverse, pred_tree)
+(41+71) / (170)
+
+pred_roc <- predict(tree, newdata = tst)
+head(pred_roc)
+
+pred = prediction(pred_roc[,2], tst$reverse)
+perf = performance(pred, "tpr","fpr")
+plot(perf)
+
+# excercises
+
+as.numeric(performance(pred, "auc")@y.values)
+
+tree <- rpart(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+              ,data= tr
+              ,method = "class"
+              ,minbucket = 5)
+prp(tree)
+
+
+tree <- rpart(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+              ,data= tr
+              ,method = "class"
+              ,minbucket = 100)
+prp(tree)
+
+# rf start
+
+tst$reverse <- as.factor(tst$reverse)
+tr$reverse <- as.factor(tr$reverse)
+
+rf <- randomForest(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+              ,data= tr, nodezie=25, ntree = 200)
+
+rf_pred <- predict(rf, newdata=tst)
+
+table(tst$reverse, rf_pred)
+(34+80)/ (170)
+
+# exercises
+
+#set.seed(100)
+set.seed(200)
+rf <- randomForest(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+              ,data= tr, nodezie=25, ntree = 200)
+table(tst$reverse, rf_pred)
+
+# cross validation
+
+numFolds <- trainControl(method = "cv", number = 10)
+cp_grid <- expand.grid(.cp = seq(0.01,0.5,0.01))
+train(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst
+      ,data = tr
+      ,method = "rpart"
+      ,trControl = numFolds
+      ,tuneGrid = cp_grid)
+
+tree_cv <- rpart(reverse ~ circuit + issue + petitioner + 
+              respondent + lowercourt + unconst,
+              data = tr, method = "class" , cp = 0.18)
+
+pred_cv <- predict(tree_cv, newdata= tst, type = "class")
+table(tst$reverse, pred_cv)
+(59+64) / 170
+
+prp(tree_cv)
+
+```
+
+Keeping an Eye on Healthcare Costs
+
+```{r}
+clm <- read.csv("C:\\Users\\Home\\Documents\\R_code\\Data\\ClaimsData.csv")
+
+names(clm) <- tolower(names(clm))
+
+str(clm)
+
+table(clm$bucket2009) / nrow(clm)
+
+set.seed(88)
+spl = sample.split(clm$bucket2009, SplitRatio = 0.6)
+tr <- subset(clm, spl == TRUE)
+tst <- subset(clm, spl == FALSE)
+
+mean(clm$age)
+
+prop.table(table(tr$diabetes))
+
+table(tst$bucket2009, tst$bucket2008)
+( 110031 + 10721 + 2774 + 1539 + 104) / nrow(tst)
+
+pen_m <- matrix(c(0,1,2,3,4,2,0,1,2,3,4,2,0,1,2,6,4,2,0,1,8,6,4,2,0), byrow = TRUE, nrow= 5)
+
+pen_m
+
+sum( as.matrix(table(tst$bucket2009, tst$bucket2008)) *pen_m ) / nrow(tst)
+
+
+prop.table(table(clm$bucket2009))
+prop.table(table(tst$bucket2009))
+1- 0.671269964 
+
+tree <- rpart(bucket2009 ~ age + arthritis + alzheimers + cancer + copd + depression + diabetes + heart.failure + ihd + kidney + 
+                osteoporosis + stroke + bucket2008 + reimbursement2008, data = tr, method = "class", cp = 0.0005)
+
+prp(tree)
+
+pred <- predict(tree, newdata=tst, type="class")
+table(tst$bucket2009, pred)
+
+
+as.matrix(table(tst$bucket2009, pred)) * pen_m
+
+sum(as.matrix(table(tst$bucket2009, pred)) * pen_m) / nrow(tst)
+
+tree <- rpart(bucket2009 ~ age + arthritis + alzheimers + cancer + copd + depression + diabetes + heart.failure + ihd + kidney + 
+                osteoporosis + stroke + bucket2008 + reimbursement2008, data = tr, method = "class", cp = 0.0005, parms = list(loss=pen_m))
+
+pred <- predict(tree, newdata=tst, type="class")
+table(tst$bucket2009, pred)
+
+(94511 + 19615 + 4521  )/ nrow(tst)
+```
+
+
+Recitation - Location, Location, Location  
+
+```{r}
+bos <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/boston.csv")
+names(bos) <- tolower(names(bos))
+
+plot(bos$lon, bos$lat)
+points(bos$lon[bos$chas == 1], bos$lat[bos$chas==1],
+       col = "blue", pch = 19)
+points(bos$lon[bos$tract == 3531], bos$lat[bos$tract == 3531],
+       col = "red", pch = 19 )
+
+summary(bos$nox)
+
+points(bos$lon[bos$nox >= 0.55], bos$lat[bos$nox >= 0.55],
+       col = "green", pch =19)
+
+with(bos, plot(lon, lat))
+summary(bos$medv)
+points(bos$lon[bos$med >= 21.2], bos$lat[bos$medv >=21.2],
+       col = "red", pch = 19)
+
+par(mfrow=c(2,1))
+plot(bos$lat, bos$medv)
+plot(bos$lon, bos$medv)
+par(mfrow=c(1,0))
+
+fit <- lm(medv ~ lat + lon, data=bos)
+summary(fit)
+
+plot(bos$lon, bos$lat)
+points(bos$lon[bos$med >= 21.2], bos$lat[bos$medv >=21.2],
+       col = "red", pch = 19)
+points(bos$lon[fit$fitted.values >= 21.2],
+       bos$lat[fit$fitted.values >= 21.2], 
+        col = "blue", pch ="$"  )
+
+fit <- rpart(medv ~ lat + lon, data=bos)
+prp(fit)
+with(bos, plot(lon, lat))
+points(bos$lon[bos$med >= 21.2], bos$lat[bos$medv >=21.2],
+       col = "red", pch = 19)
+fit_val = predict(fit)
+points(bos$lon[fit_val >= 21.2],
+       bos$lat[fit_val >= 21.2], 
+        col = "blue", pch ="$"  )
+
+fit <- rpart(medv ~ lat + lon, data=bos, minbucket = 50)
+plot(fit)
+text(fit)
+with(bos, plot(lon, lat))
+abline(v = -71.07) # first split of tree
+abline(h = 42.21) # next
+abline(h = 42.17) # next next
+points(bos$lon[bos$med >= 21.2], bos$lat[bos$medv >=21.2],
+       col = "red", pch = 19)
+# carves out and show low value area
+
+set.seed(123)
+spl <- sample.split(bos$medv, SplitRatio = 0.7)
+tr <- subset(bos, spl == TRUE)
+tst <- subset(bos, spl != TRUE)
+tst$town <- NULL
+tst$tract <- NULL
+tr$town <- NULL
+tr$tract <- NULL
+
+fit <- lm(medv ~., data=tr)
+summary(fit)
+pred <- predict(fit, newdata =tst)
+sum((pred - tst$medv) ^2) #3037.088
+
+tree <- rpart(medv ~., data=tr)
+prp(tree)
+pred <- predict(tree, newdata = tst)
+sum((pred - tst$medv)^2) #4328.988
+
+tr_ctrl = trainControl(method = "cv", number = 10)
+cp_grid <- expand.grid(.cp = (0:10)*0.001)
+
+fit <- train(medv ~., data=tr,
+             method = "rpart"
+             ,trControl = tr_ctrl,
+             tuneGrid = cp_grid
+             )
+
+tree <- rpart(medv ~., data=tr, cp = 0.001)
+prp(tree)
+pred <- predict(tree, newdata=tst)
+sum((pred - tst$medv)^2) #  3675.766
+```
+
+
+UNDERSTANDING WHY PEOPLE VOTE
+
+```{r}
+vt <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/gerber.csv")
+
+names(vt) <- tolower(names(vt))
+
+str(vt)
+
+prop.table(table(vt$voting))
+
+prop.table(with(vt, table(voting, hawthorne)))
+prop.table(with(vt, table(voting, civicduty)))
+prop.table(with(vt, table(voting, neighbors)))
+prop.table(with(vt, table(voting, self)))
+
+fit <- glm(voting ~ hawthorne + civicduty + neighbors + self, data=vt)
+summary(fit)
+
+pred <- predict(fit, type="response")
+table(vt$voting  , pred > 0.3)
+(134513 + 51966 ) / nrow(vt)
+
+table(vt$voting  , pred > 0.5)
+(235388 ) / nrow(vt)
+
+library(ROCR)
+roc_pr <- prediction(pred, vt$voting)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+mod <- rpart(voting ~  civicduty + hawthorne + self + neighbors, data=vt)
+prp(mod)
+
+mod <- rpart(voting ~  civicduty + hawthorne + self + neighbors
+             ,data=vt
+             ,cp = 0.0)
+prp(mod)
+
+
+mod <- rpart(voting ~  civicduty + hawthorne + self + neighbors + sex
+             ,data=vt
+             ,cp = 0.0)
+prp(mod)
+
+mod <- rpart(voting ~ control, data = vt, cp = 0.0)
+prp(mod, digits = 6)
+abs(0.296638 - 0.34)
+
+mod <- rpart(voting ~ control + sex, data = vt, cp = 0.0)
+prp(mod, digits = 3)
+#women
+(0.29 - 0.334)
+#men
+(0.303 - 0.346)
+
+mod <- glm(voting ~ control + sex, data = vt, family = "binomial")
+summary(mod)
+
+posb <- data.frame(sex=c(0,0,1,1), control=c(0,1,0,1))
+predict(mod, newdata = posb, type = "response")
+
+#   tree  logistic
+abs(0.290456 - 0.2908065)
+
+
+mod <- glm(voting ~ control*sex, data=vt, family = "binomial")
+summary(mod)
+predict(mod, newdata=posb, type = "response")
+abs(0.290456 - 0.2904558)
+
+```
+
+
+LETTER RECOGNITION
+
+```{r}
+let <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/letters_ABPR.csv")
+names(let) <- tolower(names(let))
+str(let)
+
+let$is_b <- as.factor(let$letter == "B")
+library(caTools)
+set.seed(1000)
+split <- sample.split(let$is_b, SplitRatio = 0.5)
+tr <- subset(let, split == TRUE)
+tst <- subset(let, split != TRUE)
+
+prop.table(table(tst$is_b))
+
+mod <- rpart(is_b ~. -letter, data=tr, method = "class")
+pred <- predict(mod, tst, type = "class")
+table(tst$is_b, pred)
+
+(1118 + 340) / nrow(tst)
+
+library(randomForest)
+set.seed(100)
+mod <- randomForest(is_b ~. , data = tr[,-1])
+pred <- predict(mod, tst, type = "class")
+table(tst$is_b, pred)
+(1164+373)/ nrow(tst)
+
+
+let$letter <- as.factor(let$letter)
+set.seed(2000)
+split <- sample.split(let$letter, SplitRatio = 0.5)
+tr <- subset(let, split == TRUE)
+tst <- subset(let, split != TRUE)
+
+prop.table(table(tst$letter))
+
+mod <- rpart(letter ~. -is_b, data=tr, method="class")
+pred <- predict(mod, tst, type="class")
+table(tst$letter, pred)
+(348 + 318 + 363 + 340) / nrow(tst)
+
+set.seed(1000)
+mod <- randomForest(letter ~., data = tr[ names(tr) != "is_b", ])
+pred <- predict(mod, tst, type="class")
+table(tst$letter, pred)
+(388+ 383+ 396 + 377)/ nrow(tst)
+
+```
+
+
+PREDICTING EARNINGS FROM CENSUS DATA
+
+```{r}
+cen <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/census.csv")
+names(cen) <- tolower(names(cen))
+str(cen)
+
+set.seed(2000)
+split <- sample.split(cen$over50k , SplitRatio = 0.6)
+tr <- subset(cen, split == TRUE)
+tst <- subset(cen, split != TRUE)
+
+mod <- glm(over50k ~., data=tr, family = "binomial")
+summary(mod)
+pred <- predict(mod, newdata = tst, type = "response")
+table(tst$over50k, pred > 0.5)
+(9051 + 1888) / nrow(tst)
+
+prop.table(table(tst$over50k))
+
+library(ROCR)
+roc_pr <- prediction(pred, tst$over50k)
+as.numeric(performance(roc_pr, "auc")@y.values)
+roc_pref <- performance(roc_pr, "tpr","fpr")
+plot(roc_pref)
+
+
+mod <- rpart(over50k~., data=tr, method="class")
+summary(mod)
+prp(mod)
+
+pred <- predict(mod, newdata = tst, type="class")
+table(tst$over50k, pred)
+(9243 + 1596) / nrow(tst)
+
+pred <- predict(mod, newdata = tst)
+roc_pr <- prediction(pred[,2], tst$over50k)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+roc_pref <- performance(roc_pr, "tpr","fpr")
+plot(roc_pref)
+
+set.seed(1)
+tr_s <- tr[sample(nrow(tr), 2000), ]
+
+mod <- randomForest(over50k ~., data=tr_s)
+pred <- predict(mod, newdat=tst)
+table(tst$over50k, pred)
+(9612 + 945) / nrow(tst)
+
+vu <- varUsed(mod, count=TRUE)
+vu_srt <- sort(vu, decreasing = FALSE, index.return = TRUE)
+dotchart(vu_srt$x, names(mod$forest$xlevels[vu_srt$ix]))
+
+varImpPlot(mod)
+
+library(caret)
+
+set.seed(2)
+numFolds <- trainControl(method = "cv", number = 10)
+cp_grid <- expand.grid(.cp = seq(0.002,0.1,0.002))
+mod <- train(over50k ~.
+      ,data = tr
+      ,method = "rpart"
+      ,trControl = numFolds
+      ,tuneGrid = cp_grid)
+
+mod
+
+mod <- rpart(over50k~., data =tr, method="class", cp = 0.002)
+pred <- predict(mod, newdata=tst, type = "class")
+table(tst$over50k, pred)
+(9178 + 1838) / nrow(tst)
+
+prp(mod)
+summary(mod)
+```
+
+STATE DATA REVISITED (OPTIONAL)
+
+```{r}
+st <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/statedataSimple.csv")
+names(st) <- tolower(names(st))
+str(st)
+
+fit <- lm(life.exp ~., data=st)
+summary(fit)
+names(fit)
+sum((fit$fitted.values - st$life.exp)^2)
+#23.29714
+
+fit <- lm(life.exp ~ population + murder + frost + hs.grad , data=st)
+summary(fit)
+sum((fit$fitted.values - st$life.exp)^2)
+#23.30804
+
+fit <- rpart(life.exp ~., data=st)
+prp(fit)
+pred <- predict(fit, newdat=st)
+sum((pred - st$life.exp)^2)
+#28.99848
+
+fit <- rpart(life.exp ~., data=st , minbucket=5)
+prp(fit)
+pred <- predict(fit, newdat=st)
+sum((pred - st$life.exp)^2)
+#23.64283
+
+fit <- rpart(life.exp ~ area, data=st , minbucket=1)
+prp(fit)
+pred <- predict(fit, newdat=st)
+sum((pred - st$life.exp)^2)
+# 9.312442
+
+set.seed(111)
+numFolds <- trainControl(method = "cv", number = 10)
+cp_grid <- expand.grid(.cp = seq(0.01,0.5,0.02))
+mod <- train(life.exp ~.
+      ,data = st
+      ,method = "rpart"
+      ,trControl = numFolds
+      ,tuneGrid = cp_grid)
+
+mod$finalModel
+summary(mod)
+
+fit <- rpart(life.exp ~., data=st , cp=0.11)
+prp(fit)
+pred <- predict(fit, newdat=st)
+sum((pred - st$life.exp)^2)
+#32.86549
+
+set.seed(111)
+mod <- train(life.exp ~ area
+      ,data = st
+      ,method = "rpart"
+      ,trControl = numFolds
+      ,tuneGrid = cp_grid)
+
+summary(mod)
+best <- mod$finalModel
+prp(best)
+pred <- predict(best, newdata=st)
+sum((pred - st$life.exp)^2)
+# 44.26817
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

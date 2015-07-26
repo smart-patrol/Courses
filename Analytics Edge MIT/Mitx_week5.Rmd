@@ -1,0 +1,388 @@
+---
+title: "MIT Week 5"
+author: "Charles J Frenzel"
+date: "Friday, April 10, 2015"
+output: html_document
+---
+
+Turning Tweets into Knowledge
+
+```{r}
+twt <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/tweets.csv", stringsAsFactors = FALSE)
+names(twt) <- tolower(names(twt))
+str(twt)
+
+twt$neg <- as.factor(twt$avg <= -1)
+table(twt$neg)
+
+#install.packages("tm")
+library(tm)
+#install.packages("SnowballC")
+library(SnowballC)
+
+corpus <- Corpus(VectorSource(twt$tweet))
+corpus[[1]]
+
+corpus <- tm_map(corpus,  content_transformer(tolower)) # lower no longer works
+corpus[[1]]
+
+corpus <- tm_map(corpus, removePunctuation)
+corpus[[1]]
+
+stopwords("english")[1:10]
+corpus <- tm_map(corpus, removeWords, c("apple", stopwords("english")))
+corpus[[1]]
+
+corpus <- tm_map(corpus, stemDocument)
+corpus[[1]]
+
+freq <- DocumentTermMatrix(corpus)
+freq
+
+inspect(freq[1000:1005, 505:515])
+
+findFreqTerms(freq, lowfreq = 20)
+
+sparse <- removeSparseTerms(freq, 0.995)
+sparse
+
+twt_spr <- as.data.frame(as.matrix(sparse))
+colnames(twt_spr) <- make.names(colnames(twt_spr))
+twt_spr$neg <- twt$neg
+
+library(caTools)
+set.seed(123)
+split <- sample.split(twt_spr$neg, SplitRatio = 0.7)
+tr_spr <- subset(twt_spr, split == TRUE)
+tst_spr <- subset(twt_spr, split != TRUE)
+
+
+findFreqTerms(freq, lowfreq = 100)
+
+library(rpart)
+library(rpart.plot)
+tree <-  rpart(neg ~., data = tr_spr, method="class")
+prp(tree)
+
+pred <- predict(tree, newdata = tst_spr, type = "class")
+table(tst_spr$neg, pred)
+(294+18)/nrow(tst_spr)
+# baseline model
+prop.table(table(tst_spr$neg))
+
+library(randomForest)
+set.seed(123)
+rf_mod <- randomForest(neg ~., data = tr_spr)
+rf_mod
+
+pred <- predict(rf_mod, newdata = tst_spr, type ="class")
+table(tst_spr$neg, pred)
+(293+21)/nrow(tst_spr)
+
+# accuracy can be increased to cart about the same as rf with 
+# using cv to find optimal cp parameter
+
+lg_mod <- glm(neg ~., data = tr_spr, family = "binomial")
+pred <- predict(lg_mod, newdata = tst_spr, type ="response")
+table(tst_spr$neg, pred)
+(253+33)/nrow(tst_spr)
+```
+
+DETECTING VANDALISM ON WIKIPEDIA
+
+```{r}
+wiki <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/wiki.csv", stringsAsFactors = FALSE)
+names(wiki) <- tolower(names(wiki))
+str(wiki)
+wiki$vandal <- as.factor(wiki$vandal)
+table(wiki$vandal)
+
+corpus_add <- Corpus(VectorSource(wiki$added))
+corpus_add <- tm_map(corpus_add, removeWords, stopwords("english"))
+corpus_add <- tm_map(corpus_add, stemDocument)
+dtm_add <- DocumentTermMatrix(corpus_add)
+dtm_add 
+sparse_add <- removeSparseTerms(dtm_add, 0.997)
+sparse_add
+
+wrd_add <- as.data.frame(as.matrix(sparse_add))
+colnames(wrd_add) <- paste("A", colnames(wrd_add))
+
+
+corpus_rmv <- Corpus(VectorSource(wiki$removed))
+corpus_rmv <- tm_map(corpus_rmv, removeWords, stopwords("english"))
+corpus_rmv <- tm_map(corpus_rmv, stemDocument)
+dtm_rmv <- DocumentTermMatrix(corpus_rmv)
+dtm_rmv 
+sparse_rmv <- removeSparseTerms(dtm_rmv, 0.997)
+sparse_rmv
+
+wrd_rmv <- as.data.frame(as.matrix(sparse_rmv))
+colnames(wrd_rmv) <- paste("R", colnames(wrd_rmv))
+dim(wrd_rmv)
+
+w_wrd <- cbind(wrd_add, wrd_rmv)
+w_wrd <- data.frame(w_wrd, vandal = wiki$vandal)
+
+set.seed(123)
+split <- sample.split(w_wrd$vandal, SplitRatio = 0.7)
+tr<- subset(w_wrd, split == TRUE)
+tst <- subset(w_wrd, split != TRUE)
+
+prop.table(table(tst$vandal))
+
+tree <-  rpart(vandal ~., data = tr, method="class")
+prp(tree)
+
+pred <- predict(tree, newdata = tst, type = "class")
+table(tst$vandal, pred)
+(618+12)/nrow(tst)
+
+w_wrd2 <- w_wrd
+w_wrd2$http <- ifelse(grepl("http", wiki$added, fixed = TRUE), 1, 0)
+table(w_wrd2$http)
+
+tr2 <- subset(w_wrd2, split == TRUE)
+tst2 <- subset(w_wrd2, split != TRUE)
+
+tree <- rpart(vandal ~., data = tr2, method = "class")
+prp(tree)
+pred <- predict(tree, newdata = tst2, type = "class")
+table(tst2$vandal, pred)
+(609+57)/nrow(tst)
+
+w_wrd2$num_add <- rowSums(as.matrix(dtm_add))
+w_wrd2$num_rmv <- rowSums(as.matrix(dtm_rmv))
+
+mean(w_wrd2$num_add)
+
+tr2 <- subset(w_wrd2, split == TRUE)
+tst2 <- subset(w_wrd2, split != TRUE)
+tree <- rpart(vandal ~., data = tr2, method = "class")
+prp(tree)
+pred <- predict(tree, newdata = tst2, type = "class")
+table(tst2$vandal, pred)
+(514 + 248)/nrow(tst2)
+
+
+w_wrd3 <- w_wrd2
+w_wrd3$minor <- wiki$minor
+w_wrd3$loggedin <- wiki$loggedin
+
+tr <- subset(w_wrd3, split == TRUE)
+tst <- subset(w_wrd3, split != TRUE)
+tree <- rpart(vandal ~., data = tr, method = "class")
+prp(tree)
+pred <- predict(tree, newdata = tst, type = "class")
+table(tst$vandal, pred)
+(595 + 241)/nrow(tst)
+```
+
+AUTOMATING REVIEWS IN MEDICINE
+
+```{r}
+cl <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/clinical_trial.csv", stringsAsFactors = FALSE)
+names(cl) <- tolower(names(cl))
+summary(cl)
+str(cl)
+
+trial <- as.factor(as.character(cl$trial))
+table(trial)
+
+max(nchar(cl$abstract))
+sum(nchar(cl$abstract)==0)
+
+subset(cl, nchar(cl$title) == min(nchar(cl$title)), title)
+
+ab <- Corpus(VectorSource(cl$abstract))
+ab <- tm_map(ab,  content_transformer(tolower)) # lower no longer works
+ab <- tm_map(ab,  PlainTextDocument) # lower no longer works
+ab <- tm_map(ab, removePunctuation)
+ab <- tm_map(ab, removeWords, stopwords("english"))
+ab <- tm_map(ab, stemDocument)
+d_ab <- DocumentTermMatrix(ab)
+d_ab <- removeSparseTerms(d_ab, 0.95)
+ab_df <- as.data.frame(as.matrix(d_ab))
+
+tit <- Corpus(VectorSource(cl$title))
+tit <- tm_map(tit,  content_transformer(tolower)) # lower no longer works
+tit <- tm_map(tit,  PlainTextDocument) # lower no longer works
+tit <- tm_map(tit, removePunctuation)
+tit <- tm_map(tit, removeWords, stopwords("english"))
+tit <- tm_map(tit, stemDocument)
+d_tit <- DocumentTermMatrix(tit)
+d_tit <- removeSparseTerms(d_tit, 0.95)
+tit_df <- as.data.frame(as.matrix(d_tit))
+
+dim(ab_df) ; dim(tit_df)
+
+freq = as.data.frame(colSums(ab_df)) 
+freq == max(freq[1]] 
+
+colnames(tit_df) <- paste0("T", colnames(tit_df))
+colnames(ab_df) <- paste0("A", colnames(ab_df))
+head(names(ab_df))
+row.names(tit_df) <- NULL
+row.names(ab_df) <- NULL
+
+dtm <- cbind(tit_df, ab_df)
+dim(dtm)
+dtm <- data.frame(dtm, trial)
+
+set.seed(144)
+split <- sample.split(dtm$trial, SplitRatio = 0.7)
+tr <- subset(dtm, split == TRUE)
+tst <- subset(dtm, split != TRUE)
+
+prop.table(table(tst$trial))
+
+tree <- rpart(trial ~., data=tr, method="class")
+prp(tree)
+pred <- predict(tree, newdata=tr)
+max(pred[2])
+pred <- predict(tree, newdata=tr)[,2]
+table(tr$trial, pred > 0.5)
+(631+441) / nrow(tr)
+441 / (441+99)
+631 / (631 + 131)
+
+pred <- predict(tree, newdata=tst, type="class")
+table(tst$trial, pred)
+(261+162) / nrow(tst)
+
+library(ROCR)
+pred <- predict(tree, newdata=tst, type = "class")
+pred <- predict(tree, newdata=tst, type="prob")[,2]
+roc_pr <- prediction(pred, tst$trial)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+
+```
+
+
+SEPARATING SPAM FROM HAM (PART 1)
+
+
+```{r}
+em <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/emails.csv", stringsAsFactors = FALSE)
+names(em) <- tolower(names(em))
+str(em)
+em$spam <- as.factor(em$spam)
+table(em$spam)
+head(em)
+max(nchar(em$text))
+subset(em, nchar(em$text) == min(nchar(em$text)))
+
+corpus <- Corpus(VectorSource(em$text))
+corpus <- tm_map(corpus,  content_transformer(tolower)) # lower no longer works
+corpus <- tm_map(corpus,  PlainTextDocument) # lower no longer works
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+corpus <- tm_map(corpus, stemDocument)
+dtm <- DocumentTermMatrix(corpus)
+dtm
+dtm <- removeSparseTerms(dtm, 0.95)
+spdtm <- as.data.frame(as.matrix(dtm))
+colnames(spdtm) <- make.names(colnames(spdtm))
+
+c_sm <- colSums(spdtm)
+sort(c_sm)
+
+row.names(spdtm) <- NULL
+spdtm <- data.frame(spdtm, spam = em$spam)
+
+sort(colSums(subset(spdtm, spam == 0, -spam)))
+sort(colSums(subset(spdtm, spam == 1, -spam)))
+
+set.seed(123)
+split <- sample.split(spdtm$spam, SplitRatio = 0.7)
+tr <- subset(spdtm, split == TRUE)
+tst <- subset(spdtm, split != TRUE)
+
+s_log <- glm(spam ~., data=tr, family = "binomial")
+s_tree <- rpart(spam ~., data=tr, method = "class")
+s_rf <- randomForest(spam ~., data=tr)
+
+l_pred <- predict(s_log, newdata=tr)
+sum(l_pred < 0.0001)
+sum(l_pred > 0.9999)
+4010 - 954 - 3056
+
+out <- subset(l_pred, l_pred > 0.0001 & l_pred > 0.9999)
+summary(s_log)
+
+prp(s_tree)
+
+# training
+
+l_pred <- predict(s_log, newdata=tr)
+table(tr$spam, l_pred > 0.5)
+(3052+954)/ nrow(tr)
+roc_pr <- prediction(l_pred, tr$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+t_pred <- predict(s_tree, newdata=tr, type = "class")
+table(tr$spam, t_pred)
+(2900+894)/nrow(tr)
+t_pred <- predict(s_tree, newdata=tr, type="prob")[,2]
+roc_pr <- prediction(t_pred, tr$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+r_pred <- predict(s_rf, newdata=tr, type="class")
+table(tr$spam, r_pred)
+(3037+952)/ nrow(tr)
+r_pred <- predict(s_rf, newdata=tr, type="prob")[,2]
+roc_pr <- prediction(r_pred, tr$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+# testing
+
+l_pred <- predict(s_log, newdata=tst)
+table(tst$spam, l_pred > 0.5)
+(1258+376)/ nrow(tst)
+roc_pr <- prediction(l_pred, tst$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+t_pred <- predict(s_tree, newdata=tst, type = "class")
+table(tst$spam, t_pred)
+(1243+383)/ nrow(tst)
+t_pred <- predict(s_tree, newdata=tst, type="prob")[,2]
+roc_pr <- prediction(t_pred, tst$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+r_pred <- predict(s_rf, newdata=tst, type="class")
+table(tst$spam, r_pred)
+(1302+392)/ nrow(tst)
+r_pred <- predict(s_rf, newdata=tst, type="prob")[,2]
+roc_pr <- prediction(r_pred, tst$spam)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

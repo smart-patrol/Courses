@@ -1,0 +1,387 @@
+---
+title: "MitxWeek3"
+author: "Charles J Frenzel"
+date: "Friday, March 20, 2015"
+output: html_document
+---
+
+##Lecture Exrecises 1
+Modeling the Expert
+```{r}
+# data file and script
+
+qual <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/quality.csv")
+
+names(qual) <- tolower(names(qual))
+
+str(qual)
+
+table(qual$poorcare)
+prop.table(table(qual$poorcare))
+
+install.packages("caTools")
+library(caTools)
+
+set.seed(88)
+split <- sample.split(qual$poorcare, SplitRatio = 0.75)
+
+q_tr <- subset(qual, split == TRUE)
+q_tst <- subset(qual, split != TRUE)
+
+dim(q_tr)
+dim(q_tst)
+
+q_mod <- glm(poorcare ~ officevisits + narcotics
+             , data=q_tr
+             , family = binomial)
+
+summary(q_mod)
+
+pred_tr <- predict(q_mod, type="response")
+mean(pred_tr)
+
+tapply(pred_tr, q_tr$poorcare, mean)
+
+ex_mod <- glm(poorcare ~ startedoncombination + providercount,
+              data = q_tr
+              ,family = binomial)
+
+ex_mod
+
+# threshold
+
+table(q_tr$poorcare ,pred_tr > 0.5)
+10/25
+70/74
+
+table(q_tr$poorcare, pred_tr > 0.7)
+16/25
+54/74
+
+
+20/25
+15/25
+# increased the value
+
+# Roc Curves
+library(ROCR)
+
+roc_pred <- prediction(pred_tr, q_tr$poorcare)
+roc_pref <- performance(roc_pred, "tpr","fpr")
+
+plot(roc_pref)
+plot(roc_pref, colorize=TRUE)
+plot(roc_pref
+     ,colorize=TRUE
+     ,print.cutoffs.at = seq(0,1,0.1)
+     ,text.adj=c(-0.2,1.7))
+
+
+pred_tst <- predict(q_mod, type="response"
+              ,newdata = q_tst)
+
+roc_tst <- prediction(pred_tst, q_tst$poorcare)
+
+auc <- as.numeric(
+  performance(roc_tst,"auc")@y.values)
+
+auc
+
+```
+
+
+
+##Lecture Exrecises 2
+Framingham Heart Study
+```{r}
+frm <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/framingham.csv")
+
+names(frm) <- tolower(names(frm))
+
+str(frm)
+
+library(caTools)
+
+set.seed(1000)
+split <- sample.split(frm$tenyearchd, SplitRatio = 0.65)
+
+tr <- subset(frm, split == TRUE)
+tst <- subset(frm, split != TRUE)
+
+f_mod <- glm(tenyearchd ~., data=tr
+             ,family = binomial)
+
+summary(f_mod)
+
+pred <- predict(f_mod, type="response", newdata=tst)
+table(tst$tenyearchd, pred >0.5)
+
+(1069+11) / (1069+11+187+6)
+#base line accuracy
+(1069+6) / (1069+11+187+6)
+
+library(ROCR)
+
+roc_pr <- prediction(pred, tst$tenyearchd)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+11 / (11+187)
+
+1069 / (1069+6)
+
+```
+
+
+
+###Populatiry of Music Records
+```{r}
+sng <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/songs.csv")
+
+names(sng) <- tolower(names(sng))
+
+summary(sng)
+
+table(sng$year)
+
+jacko <- sng[ sng$artistname == "Michael Jackson", ]
+
+nrow(jacko)
+
+jacko$songtitle[ jacko$top10 == 1]
+
+table(sng$timesignature)
+
+sng[which.max(sng$tempo), ]
+
+tr <- subset(sng, year < 2010)
+tst <- subset(sng, year == 2010)
+rm(sng, jacko)
+
+nrow(tr)
+
+drop <- c("year","songtitle","artistname","songid","artistid")   
+
+s_mod1 <- glm(top10 ~. 
+              ,data = tr[ , !names(tr) %in% drop]
+              ,family=binomial)
+
+summary(s_mod1)
+
+cor(tr$loudness, tr$energy)
+
+
+s_mod2 <- glm(top10 ~. - loudness 
+              ,data = tr[ , !names(tr) %in% drop]
+              ,family=binomial)
+
+summary(s_mod2)
+
+s_mod3 <- glm(top10 ~. - energy 
+              ,data = tr[ , !names(tr) %in% drop]
+              ,family=binomial)
+
+summary(s_mod3)
+
+pred <- predict(s_mod3, type="response", newdata=tst)
+
+table(tst$top10, pred > 0.45)
+(328) / 373
+
+prop.table(table(tst$top10))
+
+19 / (59)
+309 / 314
+
+
+```
+
+
+### Predicting Parole Violators
+```{r}
+par <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/parole.csv")
+
+names(par) <- tolower(names(par))
+
+summary(par)
+
+table(par$violator)
+
+par$state <- as.factor(par$state)
+par$crime <- as.factor(par$crime)
+
+summary(par)
+
+set.seed(144)
+library(caTools)
+split = sample.split(par$violator, SplitRatio = 0.7)
+tr <- subset(par, split == T)
+tst <- subset(par, split != T)
+
+fit <- glm(violator ~. 
+           ,data = tr
+           ,family = binomial
+           )
+
+summary(fit)
+
+p = predict(fit, data.frame(
+  male = 1,
+  race = 1,
+  age = 50,
+  state = as.factor(1),
+  time.served = 3,
+  max.sentence = 12,
+  multiple.offenses = 0,
+  crime = as.factor(2)
+), type="response")
+p/(1-p)
+p
+
+pred <- predict(fit, type="response",tst)
+
+max(pred)
+
+table(tst$violator, pred > 0.5)
+12 / 23
+167 / 179
+(12+167) / (12+167+11+12)
+
+prop.table(table(tst$violator))
+
+library(ROCR)
+roc_pr <- prediction(pred, tst$violator)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+```
+
+
+##PREDICTING LOAN REPAYMENT
+```{r}
+loan <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/loans.csv")
+
+names(loan) <- tolower(names(loan))
+names(loan) <- gsub("\\.","_", names(loan))
+
+summary(loan)
+str(loan)
+
+prop.table(table(loan$not_fully_paid))
+
+install.packages("mice")
+library(mice)
+set.seed(144)
+
+var_imp <- setdiff(names(loan), "not_fully_paid")
+
+impt <- complete(mice(loan[var_imp]))
+
+loan[var_imp] = impt
+
+sum(is.na(loan))
+
+?setdiff
+?mice
+
+set.seed(144)
+library(caTools)
+split <- sample.split(loan$not_fully_paid, SplitRatio = .70)
+
+tr <- subset(loan, split == TRUE)
+tst <- subset(loan, split != TRUE)
+
+fit <- glm(not_fully_paid ~.
+           ,data = tr
+           ,family = binomial)
+
+summary(fit)
+
+a = 700 * -9.406e-03 
+b = 710 * -9.406e-03 
+a - b
+
+exp(a) / exp(b)
+
+pred <- predict(fit, type="response", tst)
+
+table(tst$not_fully_paid, pred > 0.5)
+(2403)/(470 + 2403)
+
+prop.table(table(tst$not_fully_paid))
+
+tst$pred_risk <- pred
+
+library(ROCR)
+roc_pr <- prediction(pred, tst$not_fully_paid)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+
+numvar = sapply(loan, is.numeric)==TRUE
+
+cor(loan[ , numvar])[,2]
+
+s_fit <- glm(not_fully_paid ~ int_rate
+           ,data = tr
+           ,family = binomial) 
+
+summary(s_fit)
+
+pred <- predict(s_fit, type="response", tst)
+
+max(pred)
+
+table(tst$not_fully_paid, pred > 0.5)
+
+roc_pr <- prediction(pred, tst$not_fully_paid)
+as.numeric(performance(roc_pr, "auc")@y.values)
+
+pays <- function(c, t, r){
+  back = c*exp(r*t)
+  print(back)
+}
+
+pays(10, 3, 0.06)
+
+exp(3*0.06)
+
+tst$profit <- exp(tst$int_rate*3)-1
+tst$profit[ tst$not_fully_paid == 1]=-1
+
+max(tst$profit)*10
+
+
+hi_in <- subset(tst, int_rate >= 0.15)
+
+mean(hi_in$profit)
+
+prop.table(table(hi_in$not_fully_paid))
+
+cutoff = sort(hi_in$pred_risk, decreasing=FALSE)[100]
+
+slct_lns <- subset(hi_in, pred_risk > cutoff)
+dim(slct_lns)
+
+
+sum(slct_lns$profit)
+table(slct_lns$not_fully_paid)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,361 @@
+---
+title: "Mitx_week7"
+author: "Charles J Frenzel"
+date: "Saturday, April 18, 2015"
+output: html_document
+---
+
+Visualizing the World
+```{r}
+who <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/WHO.csv")
+names(who) <- tolower(names(who))
+str(who)
+
+with(who,plot(gni, fertilityrate))
+
+library(ggplot2)
+
+p <- ggplot(who, aes(x = gni, y = fertilityrate))
+p + geom_point()
+p + geom_point( color = "blue", size = 3, shape =17)
+p + geom_point( color = "darkred", size = 3, shape =8)
+
+p + geom_point( color = "darkred", size = 3, shape =8) +
+  labs(title = "Fertility vs Gross National Income")
+
+p <- p + geom_point( color = "darkred", size = 3, shape =8) +
+  labs(title = "Fertility vs Gross National Income")
+
+p
+ggsave("myplot.pdf")
+
+
+ggplot(who, aes(gni, fertilityrate, color=region)) + geom_point()
+
+ggplot(who, aes(gni, fertilityrate, color=lifeexpectancy)) + geom_point()
+
+ggplot(who, aes(x = log(fertilityrate), y = under15)) + 
+  geom_point() +
+  geom_smooth()
+
+mod <- lm(under15 ~ log(fertilityrate), data=who)
+summary(mod)
+
+ggplot(who, aes(x = log(fertilityrate), y = under15)) + 
+  geom_point() +
+  stat_smooth(method ="lm", se = TRUE, colour = "orange")
+
+ggplot(who, aes(x = fertilityrate, y = under15, colour = region)) + 
+ geom_point()
+```
+
+Police Brutality
+```{r}
+mvt <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/mvt.csv", stringsAsFactors=FALSE)
+names(mvt) <- tolower(names(mvt))
+
+mvt$date <- strptime(mvt$date, format="%m/%d/%y %H:%M")
+mvt$weekday <- weekdays(mvt$date)
+mvt$hour <- mvt$date$hour
+str(mvt)
+
+table(mvt$weekday)
+wk_dy_cnt <- as.data.frame(table(mvt$weekday))
+wk_dy_cnt
+
+library(ggplot2)
+ggplot(wk_dy_cnt, aes( x = Var1, y = Freq)) + 
+  geom_line(aes(group = 1))
+
+wk_dy_cnt$Var1 <- factor(wk_dy_cnt$Var1
+                    ,ordered = T         
+                    ,levels = c("Sunday","Monday","Tuesday"
+                       ,"Wednesday","Thursday",
+                        "Friday", "Saturday"))
+
+ggplot(wk_dy_cnt, aes( x = Var1, y = Freq)) + 
+  geom_line(aes(group = 1)) + labs(x = "day of the week",
+                                   y = "mv theft")
+
+ggplot(wk_dy_cnt, aes( x = Var1, y = Freq)) + 
+  geom_line(aes(group = 1), linetype = 2, alpha = 0.3) + 
+  labs(x = "day of the week", y = "mv theft")
+
+table(mvt$weekday, mvt$hour)
+
+dy_hr_cnts <- as.data.frame(table(mvt$weekday, mvt$hour))
+str(dy_hr_cnts)
+
+dy_hr_cnts$hour <- as.numeric(as.character(dy_hr_cnts$Var2))
+
+ggplot(dy_hr_cnts, aes( x = hour, y = Freq)) +
+  geom_line(aes(group = Var1, color = Var1), size = 2)
+
+dy_hr_cnts$Var1 <- factor(dy_hr_cnts$Var1
+                    ,ordered = T         
+                    ,levels = c("Monday","Tuesday"
+                       ,"Wednesday","Thursday",
+                        "Friday", "Saturday", "Sunday"))
+
+ggplot(dy_hr_cnts, aes( x = hour, y = Var1)) +
+  geom_tile(aes(fill = Freq)) +
+  scale_fill_gradient(name = "Total MV thefts") +
+  theme(axis.title.y = element_blank())
+
+ggplot(dy_hr_cnts, aes( x = hour, y = Var1)) +
+  geom_tile(aes(fill = Freq)) +
+  scale_fill_gradient(name = "Total MV thefts", 
+        low = "white", high = "red") +
+  theme(axis.title.y = element_blank())
+
+install.packages(c("map", "ggmap"))
+library(ggmap) ; library(map)
+
+chi <- get_map(location = "chicago", zoom = 11)
+ggmap(chi)
+ggmap(chi) + geom_point(dat = mvt[1:100, ],
+              aes(x = longitude, y = latitude))
+
+ll_cnts <- as.data.frame(table(round(mvt$longitude, 2),
+                              round(mvt$latitude,2)))
+str(ll_cnts)
+
+ll_cnts$long <- as.numeric(as.character(ll_cnts$Var1))
+ll_cnts$lat <- as.numeric(as.character(ll_cnts$Var2))
+
+ggmap(chi) + 
+  geom_point(data = ll_cnts, 
+        aes(x = long , y = lat, color = Freq, size = Freq)) +
+  scale_color_gradient(low = "yellow", high = "red")
+
+ggmap(chi) + geom_tile(data = ll_cnts, 
+            aes(x = long , y= lat, alpha = Freq),
+            fill = "red")
+
+sum(ll_cnts$Freq == 0)
+
+
+mrd <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/murders.csv")
+names(mrd) <- tolower(names(mrd))
+str(mrd)
+
+s_mp <- map_data("state")
+str(s_mp)
+
+ggplot(s_mp, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "white", colour = "black") +
+  theme_bw()
+
+mrd$region <- tolower(mrd$state)
+m_map <- merge(s_mp, mrd, by = "region")
+str(mrd)
+
+
+ggplot(m_map, 
+aes(x = long, y = lat, group = group, fill = murders)) +
+  geom_polygon(colour = "black") +
+  scale_fill_gradient(low="black", high="red", guide="legend") +
+  theme_bw()
+
+m_map$mrd_rt <- m_map$murders / m_map$population*1000
+
+ggplot(m_map, 
+aes(x = long, y = lat, group = group, fill = mrd_rt)) +
+  geom_polygon(colour = "black") +
+  scale_fill_gradient(low="black", high="red", guide="legend") +
+  theme_bw()
+
+ggplot(m_map[ m_map$region != "district of columbia", ], 
+aes(x = long, y = lat, group = group, fill = mrd_rt)) +
+  geom_polygon(colour = "black") +
+  scale_fill_gradient(low="black", high="red", guide="legend") +
+  theme_bw()
+
+ggplot(m_map[ m_map$region != "district of columbia", ], 
+aes(x = long, y = lat, group = group, fill = gunownership)) +
+  geom_polygon(colour = "black") +
+  scale_fill_gradient(low="black", high="red", guide="legend") +
+  theme_bw()
+
+```
+
+
+ELECTION FORECASTING REVISITED
+```{r}
+library(ggplot2)
+library(maps)
+library(ggmap)
+
+s_mp <- map_data("state")
+
+str(s_mp)
+table(s_mp$group)
+
+ggplot(s_mp, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "white", color = "black")
+
+pol <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/PollingImputed.csv")
+names(pol) <- tolower(names(pol))
+str(pol)
+
+tr <- pol[ pol$year < 2012, ]
+tst <- pol[pol$year == 2012, ]
+
+mod2 <- glm(republican ~ surveyusa + diffcount, 
+            data = tr, family = "binomial")
+
+t_pred <- predict(mod2, newdata=tst, type="response")
+t_pred_bi <- as.numeric(t_pred > 0.5)
+p_df <- data.frame(t_pred, t_pred_bi, tst$state)
+
+table(t_pred_bi)
+mean(t_pred, na.rm=T)
+
+p_df$region <- tolower(p_df$tst.state)
+
+p_mp <- merge(s_mp, p_df, by = "region")
+p_mp <- p_mp[order(p_mp$order),]
+dim(p_mp)
+dim(s_mp)
+
+ggplot(p_mp, 
+aes(x = long, y = lat, group = group, fill = t_pred_bi)) +
+  geom_polygon(color = "black")
+
+ggplot(p_mp, 
+aes(x = long, y = lat, group = group, fill = t_pred)) + 
+  geom_polygon(color = "black") + 
+  scale_fill_gradient(low = "blue", high = "red", guide = "legend", breaks= c(0,1), labels = c("Democrat", "Republican"), name = "Prediction 2012")
+
+head(p_mp[ p_mp$tst.state == "Florida", ],1)
+
+#linetype
+#size
+#alpha
+
+```
+
+
+VISUALIZING NETWORK DATA
+
+```{r}
+ed <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/edges.csv")
+
+usr <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/users.csv")
+
+names(ed) <- tolower(names(ed))
+names(usr) <- tolower(names(usr))
+
+str(ed)
+str(usr)
+  
+table(usr$locale)
+table(usr$school, usr$gender)
+
+install.packages("igraph")
+library(igraph)
+
+g = graph.data.frame(ed, FALSE, usr)
+
+plot(g, vertex.size=5, vertex.label=NA)
+
+degree(g)
+mean(degree(g))
+
+V(g)$size = degree(g)/2+2
+plot(g, vertex.label=NA)
+
+max(V(g)$size)
+min(V(g)$size)
+
+V(g)$color = "black"
+V(g)$color[V(g)$gender == "A"] = "red"
+V(g)$color[V(g)$gender == "B"] = "gray"
+plot(g)
+
+V(g)$color[V(g)$school == "A"] = "blue"
+V(g)$color[V(g)$school == "AB"] = "orange"
+plot(g, vertex.label=NA)
+
+V(g)$color[V(g)$locale == "A"] = "green"
+V(g)$color[V(g)$locale == "B"] = "yellow"
+plot(g, vertex.label=NA)
+
+?igraph.plotting
+```
+
+
+VISUALIZING TEXT DATA USING WORD CLOUDS
+
+```{r}
+twt <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/tweets.csv", stringsAsFactors = FALSE)
+
+names(twt) <- tolower(names(twt))
+str(twt)
+
+library(tm)
+library(SnowballC)
+
+corpus <- Corpus(VectorSource(twt$tweet))
+corpus <- tm_map(corpus,  content_transformer(tolower)) 
+corpus <- tm_map(corpus,  PlainTextDocument) 
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+dtm <- DocumentTermMatrix(corpus)
+
+dtm
+all_twt <- as.data.frame(as.matrix(dtm))
+row.names(all_twt) <- NULL
+dim(all_twt)
+
+install.packages("wordcloud")
+library(wordcloud)
+
+colnames(all_twt)
+colSums(all_twt)
+
+?wordcloud
+
+wordcloud(colnames(all_twt), colSums(all_twt))
+
+colSums(all_twt)[225]
+
+corpus <- Corpus(VectorSource(twt$tweet))
+corpus <- tm_map(corpus,  content_transformer(tolower)) 
+corpus <- tm_map(corpus,  PlainTextDocument) 
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, c("apple", stopwords("english")))
+dtm <- DocumentTermMatrix(corpus)
+
+all_twt <- as.data.frame(as.matrix(dtm))
+row.names(all_twt) <- NULL
+dim(all_twt)
+
+wordcloud(colnames(all_twt), colSums(all_twt))
+
+tail(order(colSums(all_twt)))
+colSums(all_twt)[1766]
+
+wordcloud(colnames(all_twt), colSums(all_twt), 
+         random.order = FALSE)
+
+
+display.brewer.all()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

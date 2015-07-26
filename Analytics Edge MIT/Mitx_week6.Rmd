@@ -1,0 +1,267 @@
+---
+title: "Mitx_week6"
+author: "Charles J Frenzel"
+date: "Friday, April 17, 2015"
+output: html_document
+---
+
+Recommendation Worth a Million
+```{r}
+god <- c(0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0)
+tit <- c(0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0)
+dist(rbind(god,tit))
+
+mv <- read.delim("http://files.grouplens.org/datasets/movielens/ml-100k/u.item", sep="|", header=FALSE, quote="\"")
+
+str(mv)
+
+colnames(mv) <- c("id","title","rls_dt", "vd_rls_dt", "imdb","ukwn","action","adv","anime","child","comedy", "crime","docu",
+        "drama" ,"fantasy","noir","horror","musical","mystry",
+      "romance","scifi","thrll", "war","western")
+
+str(mv)
+
+mv$id <- NULL
+mv$rls_dt <- NULL
+mv$vd_rls_dt <- NULL
+mv$imdb <- NULL
+
+mv = unique(mv)
+
+str(mv)
+
+table(mv$comedy)
+table(mv$western)
+table(mv$romance, mv$drama)
+
+
+e_dist <- dist(mv[2:20], method="euclidean")
+
+mv_clus <- hclust(e_dist, method = "ward")
+plot(mv_clus)
+
+clus_grp <- cutree(mv_clus, k = 10)
+tapply(mv$action, clus_grp, mean)
+tapply(mv$romance, clus_grp, mean)
+
+subset(mv, grepl("Men in Black",title) == T)
+
+clus_grp[257]
+
+clus2 <- subset(mv, clus_grp ==2)
+head(clus2$title,10)
+
+clus_grp <- cutree(mv_clus, k = 2)
+
+out <- cbind(mv[,2:20], clus_grp)
+head(out[ out$clus_grp == 2, ])
+```
+
+
+Daily Kos
+```{r}
+library(readr)
+kos <- read_csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/dailykos.csv")
+
+str(kos)
+e_d <- dist(kos, method="euclidean")
+clus <- hclust(e_d, method = "ward")
+plot(clus)
+
+grps <- cutree(clus, k = 7)
+table(grps)
+
+for(i in 1:7){
+  print(paste0("this is cluster ", i))
+print(tail(sort(colMeans(subset(kos, grps == i)))))
+}
+
+set.seed(1000)
+kmns <- kmeans(kos, 7)
+table(kmns$cluster)
+
+
+for(i in 1:7){
+  print(paste0("this is cluster ", i))
+print(tail(sort(colMeans(subset(kos, kmns$cluster == i)))))
+}
+
+table(grps, kmns$cluster)
+```
+
+
+MARKET SEGMENTATION FOR AIRLINES
+
+```{r}
+air <- read_csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/AirlinesCluster.csv")
+
+names(air) <-tolower(names(air))
+
+str(air)
+summary(air)
+
+library(caret)
+
+preproc <- preProcess(air)
+air_n <- predict(preproc, air)
+
+summary(air_n)
+
+e_d <- dist(air_n)
+clus <- hclust(e_d, method="ward.D")
+plot(clus)
+
+grps <- cutree(clus, k=5)
+table(grps)
+
+library(dplyr)
+comb <- cbind(air, clus = grps)
+out <- comb %>%
+  group_by(clus) %>%
+  summarise_each(funs(mean)) 
+
+round(data.frame(out),0)
+
+set.seed(88)
+kmns <- kmeans(air_n, 5, iter.max=1000)
+
+table(kmns$cluster)
+
+comb <- cbind(air, clus = kmns$cluster)
+out <- comb %>%
+  group_by(clus) %>%
+  summarise_each(funs(mean)) 
+
+round(data.frame(out),0)
+
+table(grps, kmns$cluster)
+```
+
+
+PREDICTING STOCK RETURNS WITH CLUSTER-THEN-PREDICT
+
+```{r}
+stks <- read.csv("https://courses.edx.org/c4x/MITx/15.071x_2/asset/StocksCluster.csv")
+names(stks) <- tolower(names(stks))
+
+str(stks)
+
+prop.table(table(stks$positivedec))
+
+rho <- round(abs(cor(stks)),1)
+rho
+
+out<- stks %>%
+  select(-positivedec) %>%
+  summarise_each(funs(mean))
+which.max(out)
+which.min(out)
+
+
+set.seed(144)
+library(caTools)
+spl <- sample.split(stks$positivedec, SplitRatio = 0.7)
+tr <- subset(stks, spl == TRUE)
+tst <- subset(stks, spl != TRUE)
+
+mod <- glm(positivedec ~., data=tr, family="binomial")
+table(tr$positivedec, mod$fitted.value >= 0.5)
+(990+3640)/ nrow(tr)
+
+pred <- predict(mod, newdata=tst)
+table(tst$positivedec, pred >= 0.5)
+(1427+312)/ nrow(tst)
+
+l_tr <- tr
+l_tr$positivedec <- NULL
+l_tst <- tst
+l_tst$positivedec <- NULL
+
+library(caret)
+preproc <-preProcess(l_tr)
+n_tr <- predict(preproc, l_tr)
+n_tst <- predict(preproc, l_tst)
+
+mean(n_tr$returnjan, na.rm=T)
+mean(n_tst$returnjan, na.rm=T)
+
+set.seed(144)
+kmns <- kmeans(n_tr,3)
+table(kmns$cluster)
+
+library(flexclust)
+
+km_kcca <- as.kcca(kmns, n_tr)
+clus_tr <- predict(km_kcca)
+clus_tst <- predict(km_kcca, newdata = n_tst)
+
+table(clus_tst)
+
+s_tr1 = subset(tr, clus_tr == 1)
+s_tr2 = subset(tr, clus_tr == 2)
+s_tr3 = subset(tr, clus_tr == 3)
+
+s_tst1 = subset(tr, clus_tst == 1)
+s_tst2 = subset(tr, clus_tst == 2)
+s_tst3 = subset(tr, clus_tst == 3)
+
+mod1 <- glm(positivedec~., data=s_tr1, family="binomial")
+mod2 <- glm(positivedec~., data=s_tr2, family="binomial")
+mod3 <- glm(positivedec~., data=s_tr3, family="binomial")
+  
+mods <- data.frame( mod1 = mod1$coef, mod2 = mod2$coef, mod3 = mod3$coef)
+mods
+
+pred1 <- predict(mod1, s_tst1, type="response")
+pred2 <- predict(mod2, s_tst2, type="response")
+pred3 <- predict(mod3, s_tst3, type="response")
+
+table(s_tst1$positivedec, pred1 >= 0.5)
+table(s_tst2$positivedec, pred2 >= 0.5)
+table(s_tst3$positivedec, pred3 >= 0.5)
+
+(283+1328) / nrow(s_tst1)
+(830+1954) / nrow(s_tst2)
+(88+48) /  nrow(s_tst3)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
